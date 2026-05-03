@@ -1,43 +1,58 @@
 /* ========================================================== */
-/* GOLD HUB PRO - INTERMARKET PULSE (INDEPENDENT AUTO-POLLER) */
+/* GOLD HUB PRO - INTERMARKET PULSE (PERSISTENT ANCHOR)       */
 /* ========================================================== */
 
-let pulseCountdown = 900; // 15 minutes in seconds
-let pulseTimerInterval;
+const PULSE_DURATION_MS = 15 * 60 * 1000; // 15 minutes in milliseconds
 
 // 1. Start the engine automatically (Called on page load)
 function initPulseEngine() {
-    console.log("> Initializing Auto-Poller for DXY Pulse (15m)...");
+    console.log("> Initializing Auto-Poller for DXY Pulse (Persistent 15m)...");
     
-    // Run the first scan immediately when the dashboard opens
-    runPulseEngine();
-    
-    // Start the 1-second countdown loop
-    pulseTimerInterval = setInterval(updatePulseTimer, 1000);
+    // Fire immediately to catch up, then run exactly once per second
+    updatePulseTimer();
+    setInterval(updatePulseTimer, 1000);
 }
 
-// 2. The Visual Countdown Clock
+// 2. The Persistent Countdown Clock (Immune to Refresh)
 function updatePulseTimer() {
-    pulseCountdown--;
-    
-    // When timer hits 0, trigger the scan and reset the clock
-    if (pulseCountdown <= 0) {
-        runPulseEngine();
-        pulseCountdown = 900; // Reset back to 15 minutes
+    const now = new Date().getTime();
+    let targetTime = localStorage.getItem('goldHub_pulseAnchor');
+
+    // A. THE TRIGGER: If no anchor exists, or the anchor is in the past
+    if (!targetTime || now >= parseInt(targetTime)) {
+        runPulseEngine(); // Fire the API and Grading logic
+        
+        // Set the brand new anchor exactly 15 minutes into the future
+        targetTime = now + PULSE_DURATION_MS;
+        localStorage.setItem('goldHub_pulseAnchor', targetTime);
     }
-    
-    // Format into MM:SS
-    const minutes = String(Math.floor(pulseCountdown / 60)).padStart(2, '0');
-    const seconds = String(pulseCountdown % 60).padStart(2, '0');
-    
-    // Push to HTML
+
+    // B. THE MATH: Calculate the exact distance between NOW and the ANCHOR
+    const timeLeftMs = parseInt(targetTime) - now;
+    const minutes = Math.floor(timeLeftMs / (1000 * 60));
+    const seconds = Math.floor((timeLeftMs % (1000 * 60)) / 1000);
+
+    // Format into MM:SS with leading zeros
+    const minStr = String(minutes).padStart(2, '0');
+    const secStr = String(seconds).padStart(2, '0');
+
+    // C. THE UI: Push to HTML
     const timerEl = document.getElementById('dxy-timer');
     if (timerEl) {
-        timerEl.innerText = `${minutes}:${seconds}`;
+        timerEl.innerText = `${minStr}:${secStr}`;
+        
+        // Visual warning: Turn red during the final 60 seconds
+        if (minutes === 0) {
+            timerEl.style.color = "var(--red)";
+            timerEl.style.textShadow = "0 0 8px rgba(239, 68, 68, 0.4)";
+        } else {
+            timerEl.style.color = "var(--text-main)"; // Default text color
+            timerEl.style.textShadow = "none";
+        }
     }
 }
 
-// 3. The API and Grading Logic
+// 3. The API and Grading Logic (PRESERVED)
 function runPulseEngine() {
     console.log("> Auto-Fetching Independent Intermarket Pulse (DXY)...");
     
