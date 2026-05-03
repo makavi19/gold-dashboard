@@ -6,7 +6,22 @@
 function initPulseEngine() {
     console.log("> Initializing Clock-Synced DXY Pulse (Candle Closes)...");
     
-    // Fire immediately to check the current candle, then run exactly once per second
+    // A. INSTANT UI RESTORE (State Rehydration)
+    // Pull the "photograph" of the last scan from the hard drive
+    const savedHtml = localStorage.getItem('goldHub_pulseHtml');
+    const savedGrade = localStorage.getItem('goldHub_pulseGrade');
+    const savedGradeClass = localStorage.getItem('goldHub_pulseClass');
+
+    if (savedHtml) {
+        document.getElementById('pulse-highlight').innerHTML = savedHtml;
+        document.getElementById('intermarket-grade').innerText = savedGrade;
+        document.getElementById('intermarket-grade').className = savedGradeClass;
+        
+        document.getElementById('z-sync-status').innerText = "[Z-SYNC: MEMORY RESTORED]";
+        document.getElementById('z-sync-status').className = "bold green-text";
+    }
+
+    // B. Start the Global Clock
     updatePulseTimer();
     setInterval(updatePulseTimer, 1000);
 }
@@ -15,35 +30,30 @@ function initPulseEngine() {
 function updatePulseTimer() {
     const now = new Date();
 
-    // A. IDENTIFY THE CURRENT CANDLE: Round down to the nearest 15-minute mark
-    // Example: 10:07 becomes 10:00:00. This is our unique ID for the current candle.
+    // A. IDENTIFY THE CURRENT CANDLE (e.g., 12:00, 12:15)
     const currentCandleStart = new Date(now);
     currentCandleStart.setMinutes(Math.floor(now.getMinutes() / 15) * 15);
     currentCandleStart.setSeconds(0);
     currentCandleStart.setMilliseconds(0);
     
-    const currentPulseId = currentCandleStart.getTime().toString(); // The unique memory ID
+    const currentPulseId = currentCandleStart.getTime().toString(); 
 
-    // B. THE TRIGGER: Check if we have already fired the API for this specific candle
+    // B. THE TRIGGER: Check if we have already fired for this specific candle
     const lastPulseId = localStorage.getItem('goldHub_lastPulseId');
     
     if (lastPulseId !== currentPulseId) {
-        // We entered a new 15-minute zone! Fire the engine.
         runPulseEngine(); 
-        
-        // Save the timestamp so we don't fire again until the next candle
         localStorage.setItem('goldHub_lastPulseId', currentPulseId);
     }
 
     // C. THE MATH: Calculate the exact distance to the NEXT candle close
     const nextCandleClose = new Date(currentCandleStart);
-    nextCandleClose.setMinutes(nextCandleClose.getMinutes() + 15); // Add 15 mins to the start time
+    nextCandleClose.setMinutes(nextCandleClose.getMinutes() + 15); 
 
     const timeLeftMs = nextCandleClose.getTime() - now.getTime();
     const minutes = Math.floor(timeLeftMs / (1000 * 60));
     const seconds = Math.floor((timeLeftMs % (1000 * 60)) / 1000);
 
-    // Format into MM:SS with leading zeros
     const minStr = String(minutes).padStart(2, '0');
     const secStr = String(seconds).padStart(2, '0');
 
@@ -52,7 +62,6 @@ function updatePulseTimer() {
     if (timerEl) {
         timerEl.innerText = `${minStr}:${secStr}`;
         
-        // Visual warning: Turn red during the final 60 seconds
         if (minutes === 0) {
             timerEl.style.color = "var(--red)";
             timerEl.style.textShadow = "0 0 8px rgba(239, 68, 68, 0.4)";
@@ -63,7 +72,7 @@ function updatePulseTimer() {
     }
 }
 
-// 3. The API and Grading Logic (PRESERVED)
+// 3. The API and Grading Logic (PRESERVED & UPGRADED)
 function runPulseEngine() {
     console.log("> Auto-Fetching Independent Intermarket Pulse (DXY)...");
     
@@ -71,14 +80,12 @@ function runPulseEngine() {
     const pulseHighlight = document.getElementById('pulse-highlight');
     const gradeElement = document.getElementById('intermarket-grade');
 
-    // UI Loading State
     syncStatus.innerText = "[Z-SYNC: FETCHING...]";
     syncStatus.className = "bold yellow-text";
     pulseHighlight.innerHTML = "<span class='muted-text'>ANALYZING DOLLAR INDEX...</span>";
     gradeElement.innerText = "CALCULATING...";
     gradeElement.className = "bold muted-text";
 
-    // Simulate API delay
     setTimeout(() => {
         const stabBiasElement = document.getElementById('stab-d1-bias');
         const goldBiasText = stabBiasElement ? stabBiasElement.innerText : "⚪ NEUTRAL";
@@ -109,7 +116,7 @@ function runPulseEngine() {
             gradeClass = "bold red-text";
         }
 
-        pulseHighlight.innerHTML = `
+        const finalHtml = `
             <div style="font-size: 0.85rem; line-height: 1.8; margin-bottom: 10px; font-family: var(--font-mono);">
                 <div><span class="muted-text">DXY 1D TREND:</span> <span class="bold ${dxy1D.includes('BULLISH') ? 'green-text' : 'red-text'}">${dxy1D} US Dollar</span></div>
                 <div><span class="muted-text">DXY 4H FLOW:</span> <span class="bold ${dxy4H.includes('BULLISH') ? 'green-text' : 'red-text'}">${dxy4H} US Dollar</span> <span class="muted-text">(Short-term pullback)</span></div>
@@ -117,11 +124,17 @@ function runPulseEngine() {
             </div>
         `;
 
+        pulseHighlight.innerHTML = finalHtml;
         gradeElement.innerText = gradeText;
         gradeElement.className = gradeClass;
 
         syncStatus.innerText = "[Z-SYNC: COMPLETE]";
         syncStatus.className = "bold green-text";
+
+        // --> THE STATE REHYDRATOR: Take the photograph and save it <--
+        localStorage.setItem('goldHub_pulseHtml', finalHtml);
+        localStorage.setItem('goldHub_pulseGrade', gradeText);
+        localStorage.setItem('goldHub_pulseClass', gradeClass);
 
     }, 1500); 
 }
