@@ -1,34 +1,45 @@
 /* ========================================================== */
-/* GOLD HUB PRO - INTERMARKET PULSE (PERSISTENT ANCHOR)       */
+/* GOLD HUB PRO - CLOCK-SYNCED INTERMARKET PULSE (15M CANDLES)*/
 /* ========================================================== */
-
-const PULSE_DURATION_MS = 15 * 60 * 1000; // 15 minutes in milliseconds
 
 // 1. Start the engine automatically (Called on page load)
 function initPulseEngine() {
-    console.log("> Initializing Auto-Poller for DXY Pulse (Persistent 15m)...");
+    console.log("> Initializing Clock-Synced DXY Pulse (Candle Closes)...");
     
-    // Fire immediately to catch up, then run exactly once per second
+    // Fire immediately to check the current candle, then run exactly once per second
     updatePulseTimer();
     setInterval(updatePulseTimer, 1000);
 }
 
-// 2. The Persistent Countdown Clock (Immune to Refresh)
+// 2. The Global Clock Engine (Synched to real-world 15m intervals)
 function updatePulseTimer() {
-    const now = new Date().getTime();
-    let targetTime = localStorage.getItem('goldHub_pulseAnchor');
+    const now = new Date();
 
-    // A. THE TRIGGER: If no anchor exists, or the anchor is in the past
-    if (!targetTime || now >= parseInt(targetTime)) {
-        runPulseEngine(); // Fire the API and Grading logic
+    // A. IDENTIFY THE CURRENT CANDLE: Round down to the nearest 15-minute mark
+    // Example: 10:07 becomes 10:00:00. This is our unique ID for the current candle.
+    const currentCandleStart = new Date(now);
+    currentCandleStart.setMinutes(Math.floor(now.getMinutes() / 15) * 15);
+    currentCandleStart.setSeconds(0);
+    currentCandleStart.setMilliseconds(0);
+    
+    const currentPulseId = currentCandleStart.getTime().toString(); // The unique memory ID
+
+    // B. THE TRIGGER: Check if we have already fired the API for this specific candle
+    const lastPulseId = localStorage.getItem('goldHub_lastPulseId');
+    
+    if (lastPulseId !== currentPulseId) {
+        // We entered a new 15-minute zone! Fire the engine.
+        runPulseEngine(); 
         
-        // Set the brand new anchor exactly 15 minutes into the future
-        targetTime = now + PULSE_DURATION_MS;
-        localStorage.setItem('goldHub_pulseAnchor', targetTime);
+        // Save the timestamp so we don't fire again until the next candle
+        localStorage.setItem('goldHub_lastPulseId', currentPulseId);
     }
 
-    // B. THE MATH: Calculate the exact distance between NOW and the ANCHOR
-    const timeLeftMs = parseInt(targetTime) - now;
+    // C. THE MATH: Calculate the exact distance to the NEXT candle close
+    const nextCandleClose = new Date(currentCandleStart);
+    nextCandleClose.setMinutes(nextCandleClose.getMinutes() + 15); // Add 15 mins to the start time
+
+    const timeLeftMs = nextCandleClose.getTime() - now.getTime();
     const minutes = Math.floor(timeLeftMs / (1000 * 60));
     const seconds = Math.floor((timeLeftMs % (1000 * 60)) / 1000);
 
@@ -36,7 +47,7 @@ function updatePulseTimer() {
     const minStr = String(minutes).padStart(2, '0');
     const secStr = String(seconds).padStart(2, '0');
 
-    // C. THE UI: Push to HTML
+    // D. THE UI: Push to HTML
     const timerEl = document.getElementById('dxy-timer');
     if (timerEl) {
         timerEl.innerText = `${minStr}:${secStr}`;
@@ -46,7 +57,7 @@ function updatePulseTimer() {
             timerEl.style.color = "var(--red)";
             timerEl.style.textShadow = "0 0 8px rgba(239, 68, 68, 0.4)";
         } else {
-            timerEl.style.color = "var(--text-main)"; // Default text color
+            timerEl.style.color = "var(--text-main)"; 
             timerEl.style.textShadow = "none";
         }
     }
